@@ -190,3 +190,71 @@ for name, clf in classifiers.items():
     print(f"\n--- {name} ---")
     print(f"Accuracy: {acc:.4f} | ROC-AUC: {auc:.4f}")
     print(classification_report(y_test, y_pred, zero_division=0))
+
+    # ==========================================
+# EXPORT RESULTS TO CSV AND TXT
+# ==========================================
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'results')
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# 1. Save detailed regression coefficients to CSV
+reg_summary_df = pd.DataFrame({
+    'Feature': asym_model.params.index,
+    'Coefficient': asym_model.params.values,
+    'Std_Error': asym_model.bse.values,
+    't_stat': asym_model.tvalues.values,
+    'p_value': asym_model.pvalues.values
+})
+reg_summary_df.to_csv(os.path.join(OUTPUT_DIR, 'regression_asymmetry_results.csv'), index=False)
+
+# 2. Save factor evaluation metrics to CSV
+factor_summary_df = pd.DataFrame([{
+    'Metric': 'Mean Cross-Sectional Rank IC',
+    'Value': mean_ic
+}, {
+    'Metric': 'Information Ratio (ICIR)',
+    'Value': icir
+}, {
+    'Metric': 'Average Weekly Long/Short Spread (%)',
+    'Value': mean_ls
+}])
+factor_summary_df.to_csv(os.path.join(OUTPUT_DIR, 'factor_summary_metrics.csv'), index=False)
+
+# 3. Save the final aligned dataset with network spillovers to CSV
+df_final.to_csv(os.path.join(OUTPUT_DIR, 'final_model_features_dataset.csv'), index=False)
+
+# 4. Save a full formatted summary report to a .txt file
+with open(os.path.join(OUTPUT_DIR, 'model_results_report.txt'), 'w') as f:
+    f.write("=" * 60 + "\n")
+    f.write("QUANTITATIVE RESEARCH REPORT: AL GUINDY NETWORK SENTIMENT\n")
+    f.write("=" * 60 + "\n\n")
+    
+    f.write("1. CROSS-SECTIONAL FACTOR METRICS\n")
+    f.write("-" * 40 + "\n")
+    f.write(f"Mean Rank IC                  : {mean_ic:.4f}\n")
+    f.write(f"Information Ratio (ICIR)      : {icir:.2f}\n")
+    f.write(f"Average Weekly L/S Spread (%) : {mean_ls:.2f}%\n\n")
+    
+    f.write("2. SHORT-SELLING ASYMMETRY REGRESSION (HAC OLS)\n")
+    f.write("-" * 40 + "\n")
+    f.write(asym_model.summary().as_text() + "\n\n")
+    
+    f.write("3. CHRONOLOGICAL ML BENCHMARKS (OUT-OF-SAMPLE)\n")
+    f.write("-" * 40 + "\n")
+    for name, clf in classifiers.items():
+        y_pred = clf.predict(X_test_scaled)
+        y_prob = clf.predict_proba(X_test_scaled)[:, 1]
+        acc = accuracy_score(y_test, y_pred)
+        auc = roc_auc_score(y_test, y_prob) if len(np.unique(y_test)) > 1 else 0.5
+        
+        f.write(f"--- {name} ---\n")
+        f.write(f"Accuracy: {acc:.4f} | ROC-AUC: {auc:.4f}\n")
+        f.write(classification_report(y_test, y_pred, zero_division=0) + "\n")
+
+print("\n" + "=" * 50)
+print("Files saved successfully to the project folder:")
+print(" • regression_asymmetry_results.csv")
+print(" • factor_summary_metrics.csv")
+print(" • final_model_features_dataset.csv")
+print(" • model_results_report.txt")
+print("=" * 50)

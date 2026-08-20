@@ -1,0 +1,84 @@
+============================================================
+QUANTITATIVE RESEARCH REPORT: AL GUINDY NETWORK SENTIMENT
+============================================================
+
+1. CROSS-SECTIONAL FACTOR METRICS
+----------------------------------------
+Mean Rank IC                  : -0.1015
+Information Ratio (ICIR)      : -1.84
+Average Weekly L/S Spread (%) : -2.97%
+
+2. SHORT-SELLING ASYMMETRY REGRESSION (HAC OLS)
+----------------------------------------
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:       price change (%)   R-squared:                       0.034
+Model:                            OLS   Adj. R-squared:                 -0.131
+Method:                 Least Squares   F-statistic:                     3.468
+Date:                Thu, 20 Aug 2026   Prob (F-statistic):           3.16e-06
+Time:                        15:30:33   Log-Likelihood:                -601.67
+No. Observations:                 159   AIC:                             1251.
+Df Residuals:                     135   BIC:                             1325.
+Df Model:                          23                                         
+Covariance Type:                  HAC                                         
+=========================================================================================
+                            coef    std err          z      P>|z|      [0.025      0.975]
+-----------------------------------------------------------------------------------------
+const                     1.5944      3.190      0.500      0.617      -4.658       7.847
+pos_sentiment             1.9639      6.027      0.326      0.745      -9.848      13.776
+neg_sentiment            -9.6591      7.046     -1.371      0.170     -23.468       4.150
+spillover_eigen          64.2019     74.563      0.861      0.389     -81.938     210.342
+spillover_betweenness   -71.1638     75.707     -0.940      0.347    -219.548      77.220
+ind_Autos                 0.4327      2.854      0.152      0.880      -5.162       6.027
+ind_Banks                 1.8149      2.982      0.609      0.543      -4.031       7.660
+ind_BusSv                 3.6078      2.984      1.209      0.227      -2.242       9.457
+ind_Chips                 5.3296      3.660      1.456      0.145      -1.844      12.503
+ind_Clths                 1.9598      3.174      0.617      0.537      -4.262       8.181
+ind_Comps                 0.3078      2.404      0.128      0.898      -4.404       5.020
+ind_Drugs                 0.2098      2.526      0.083      0.934      -4.741       5.161
+ind_ElcEq                 0.3931      1.944      0.202      0.840      -3.417       4.203
+ind_Fin                   2.2288      3.528      0.632      0.528      -4.686       9.144
+ind_Fun                   2.2386      3.347      0.669      0.504      -4.321       8.799
+ind_LabEq                 3.1768      6.708      0.474      0.636      -9.970      16.323
+ind_Meals                 1.2970      2.911      0.446      0.656      -4.408       7.002
+ind_MedEq                -1.7366      2.302     -0.754      0.451      -6.249       2.776
+ind_Oil                   2.5728      4.258      0.604      0.546      -5.773      10.919
+ind_Rtail                 2.5369      3.706      0.685      0.494      -4.726       9.800
+ind_Smoke                -5.8955      3.133     -1.882      0.060     -12.037       0.246
+ind_Telcm                -0.8090      2.409     -0.336      0.737      -5.531       3.913
+ind_Trans                -0.8902      2.749     -0.324      0.746      -6.279       4.498
+ind_Unclassified          5.9631      4.022      1.483      0.138      -1.920      13.847
+==============================================================================
+Omnibus:                      126.839   Durbin-Watson:                   2.054
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):             1983.378
+Skew:                           2.693   Prob(JB):                         0.00
+Kurtosis:                      19.443   Cond. No.                         198.
+==============================================================================
+
+Notes:
+[1] Standard Errors are heteroscedasticity and autocorrelation robust (HAC) using 1 lags and without small sample correction
+
+3. CHRONOLOGICAL ML BENCHMARKS (OUT-OF-SAMPLE)
+----------------------------------------
+--- Logistic Regression (L2 Regularized) ---
+Accuracy: 0.3519 | ROC-AUC: 0.4797
+              precision    recall  f1-score   support
+
+           0       0.00      0.00      0.00        35
+           1       0.35      1.00      0.52        19
+
+    accuracy                           0.35        54
+   macro avg       0.18      0.50      0.26        54
+weighted avg       0.12      0.35      0.18        54
+
+--- Random Forest (Constrained Depth) ---
+Accuracy: 0.3519 | ROC-AUC: 0.4902
+              precision    recall  f1-score   support
+
+           0       0.00      0.00      0.00        35
+           1       0.35      1.00      0.52        19
+
+    accuracy                           0.35        54
+   macro avg       0.18      0.50      0.26        54
+weighted avg       0.12      0.35      0.18        54
+
