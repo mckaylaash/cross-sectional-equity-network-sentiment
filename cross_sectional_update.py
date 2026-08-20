@@ -17,67 +17,63 @@ vader_avg = pd.read_csv(os.path.join(DATA_DIR, 'vader_avg.csv'))
 top200 = pd.read_csv(os.path.join(DATA_DIR, 'Top200_2022.csv'))
 weekly_changes = pd.read_csv(os.path.join(DATA_DIR, 'priceChangeData.csv'))
 
-# Normalize column names (strip whitespace and standardize lowercase where applicable)
-vader_avg.columns = vader_avg.columns.str.strip()
-top200.columns = top200.columns.str.strip()
-weekly_changes.columns = weekly_changes.columns.str.strip()
+# Standardize columns to lowercase
+vader_avg.columns = vader_avg.columns.str.strip().str.lower()
+top200.columns = top200.columns.str.strip().str.lower()
+weekly_changes.columns = weekly_changes.columns.str.strip().str.lower()
 
-# Standardize ticker and week column names
-if 'Week' in vader_avg.columns:
-    vader_avg = vader_avg.rename(columns={'Week': 'week'})
-if 'Week' in weekly_changes.columns:
-    weekly_changes = weekly_changes.rename(columns={'Week': 'week'})
-
+# Ensure standard column names
 vader_avg = vader_avg[['matched_tickers', 'week', 'vader_score_avg']].drop_duplicates()
 vader_avg['matched_tickers'] = vader_avg['matched_tickers'].astype(str).str.strip().str.upper()
 vader_avg['week'] = vader_avg['week'].astype(int)
 
-top200['Ticker'] = top200['Ticker'].astype(str).str.strip().str.upper()
-weekly_changes['Ticker'] = weekly_changes['Ticker'].astype(str).str.strip().str.upper()
+top200['ticker'] = top200['ticker'].astype(str).str.strip().str.upper()
+weekly_changes['ticker'] = weekly_changes['ticker'].astype(str).str.strip().str.upper()
 weekly_changes['week'] = weekly_changes['week'].astype(int)
 
-# Extract Centrality Metrics from Al Guindy Top200
-centrality_cols = ['Ticker', 'Industry', 'Eigen Centrality', 'Betweeness Centrality', 'Weighted Degree']
-network_df = top200[centrality_cols].drop_duplicates(subset=['Ticker'])
+# Extract Centrality Metrics
+centrality_cols = ['ticker', 'industry', 'eigen centrality', 'betweeness centrality', 'weighted degree']
+network_df = top200[centrality_cols].drop_duplicates(subset=['ticker'])
 
-# Merge Sentiment with Network Graph Topology
-df = pd.merge(vader_avg, network_df, left_on='matched_tickers', right_on='Ticker', how='inner')
+# Merge Sentiment with Network Graph
+df = pd.merge(vader_avg, network_df, left_on='matched_tickers', right_on='ticker', how='inner')
 
 # ==========================================
-# UPGRADE 1: MULTI-CENTRALITY NETWORK SPILLOVER
+# UPGRADE 1: VECTORIZED NETWORK SPILLOVER (NO INDEX CORRUPTION)
 # ==========================================
-def compute_centrality_spillovers(group):
-    metrics = {
-        'spillover_eigen': 'Eigen Centrality',
-        'spillover_betweenness': 'Betweeness Centrality',
-        'spillover_degree': 'Weighted Degree'
-    }
+metrics = {
+    'spillover_eigen': 'eigen centrality',
+    'spillover_betweenness': 'betweeness centrality',
+    'spillover_degree': 'weighted degree'
+}
+
+for spill_col, weight_col in metrics.items():
+    # Calculate product of sentiment and centrality weight
+    df['temp_weighted_sent'] = df['vader_score_avg'] * df[weight_col]
     
-    for spill_col, weight_col in metrics.items():
-        total_weighted_sent = (group['vader_score_avg'] * group[weight_col]).sum()
-        total_weight = group[weight_col].sum()
-        
-        # Peer spillover = (Sector Total - Own) / (Total Sector Weight - Own Weight)
-        peer_sent = (total_weighted_sent - (group['vader_score_avg'] * group[weight_col])) / (total_weight - group[weight_col] + 1e-6)
-        group[spill_col] = peer_sent
-        
-    return group
+    # Calculate sector-wide totals per week
+    sector_total_sent = df.groupby(['industry', 'week'])['temp_weighted_sent'].transform('sum')
+    sector_total_weight = df.groupby(['industry', 'week'])[weight_col].transform('sum')
+    
+    # Peer spillover = (Sector Total - Own) / (Total Sector Weight - Own Weight)
+    peer_sent_sum = sector_total_sent - df['temp_weighted_sent']
+    peer_weight_sum = sector_total_weight - df[weight_col]
+    
+    df[spill_col] = peer_sent_sum / (peer_weight_sum + 1e-6)
 
-# Calculate spillovers and ensure 'week' stays as a flat column
-df = df.groupby(['Industry', 'week'], group_keys=False).apply(compute_centrality_spillovers)
-df = df.reset_index(drop=True)
+df = df.drop(columns=['temp_weighted_sent'])
 
 # ==========================================
 # FORWARD RETURN ALIGNMENT (PREDICT t+1)
 # ==========================================
 # Shift target week backwards so week t sentiment maps to week t+1 return
-weekly_changes['Predict_For_Week'] = weekly_changes['week'] - 1
+weekly_changes['predict_for_week'] = weekly_changes['week'] - 1
 
 df_final = pd.merge(
     df,
-    weekly_changes[['Ticker', 'Predict_For_Week', 'Price Change (%)']],
+    weekly_changes[['ticker', 'predict_for_week', 'price change (%)']],
     left_on=['matched_tickers', 'week'],
-    right_on=['Ticker', 'Predict_For_Week'],
+    right_on=['ticker', 'predict_for_week'],
     how='inner'
 )
 
@@ -102,15 +98,15 @@ long_short_returns = []
 for w, group in df_final.groupby('week'):
     if len(group) >= 5:
         # 1. Rank Information Coefficient (IC)
-        ic, _ = spearmanr(group['composite_alpha'], group['Price Change (%)'])
+        ic, _ = spearmanr(group['composite_alpha'], group['price change (%)'])
         if not np.isnan(ic):
             ics.append(ic)
             
         # 2. Quintile Long/Short Portfolio Spread
         group = group.sort_values(by='composite_alpha')
         q_size = max(1, len(group) // 5)
-        short_basket = group.head(q_size)['Price Change (%)'].mean()
-        long_basket = group.tail(q_size)['Price Change (%)'].mean()
+        short_basket = group.head(q_size)['price change (%)'].mean()
+        long_basket = group.tail(q_size)['price change (%)'].mean()
         long_short_returns.append(long_basket - short_basket)
 
 mean_ic = np.mean(ics) if ics else 0
@@ -132,7 +128,7 @@ print("="*50)
 df_final['pos_sentiment'] = np.maximum(0, df_final['vader_score_avg'])
 df_final['neg_sentiment'] = np.minimum(0, df_final['vader_score_avg'])
 
-industry_dummies = pd.get_dummies(df_final['Industry'], prefix='ind', drop_first=True)
+industry_dummies = pd.get_dummies(df_final['industry'], prefix='ind', drop_first=True)
 
 X_asym = pd.concat([
     df_final[['pos_sentiment', 'neg_sentiment', 'spillover_eigen', 'spillover_betweenness']], 
@@ -140,7 +136,7 @@ X_asym = pd.concat([
 ], axis=1).astype(float)
 
 X_asym = sm.add_constant(X_asym)
-y_asym = df_final['Price Change (%)'].astype(float)
+y_asym = df_final['price change (%)'].astype(float)
 
 asym_model = sm.OLS(y_asym, X_asym).fit(cov_type='HAC', cov_kwds={'maxlags': 1})
 print(asym_model.summary().tables[1])
@@ -152,16 +148,16 @@ print("\n" + "="*50)
 print("CHRONOLOGICAL ML CLASSIFICATION (OUT-OF-SAMPLE)")
 print("="*50)
 
-df_final['target_label'] = (df_final['Price Change (%)'] > 0).astype(int)
+df_final['target_label'] = (df_final['price change (%)'] > 0).astype(int)
 
 features = [
     'vader_score_avg', 
     'spillover_eigen', 
     'spillover_betweenness', 
     'spillover_degree', 
-    'Eigen Centrality', 
-    'Betweeness Centrality', 
-    'Weighted Degree'
+    'eigen centrality', 
+    'betweeness centrality', 
+    'weighted degree'
 ]
 
 X_ml = df_final[features]
